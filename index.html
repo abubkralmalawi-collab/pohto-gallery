@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>معرض الصور</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.7/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -21,8 +21,9 @@
 <body class="bg-[#0f1115] min-h-screen text-zinc-100">
 
 <!-- ===================== شاشة التحميل الأولية ===================== -->
-<div id="bootLoader" class="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1115]">
+<div id="bootLoader" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0f1115] gap-4">
   <div class="w-8 h-8 rounded-full border-2 border-amber-500 spinner"></div>
+  <p id="bootError" class="hidden text-red-400 text-sm text-center px-6 max-w-sm"></p>
 </div>
 
 <!-- ===================== شاشة الدخول / إنشاء حساب ===================== -->
@@ -124,7 +125,32 @@
 const SUPABASE_URL = 'https://xyzczcieiizsgaduhnlm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh5emN6Y2llaWl6c2dhZHVobmxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyOTUzNjksImV4cCI6MjA5ODg3MTM2OX0.qCRFNgKVq50-CFZC0E2xe0n4P4xsBjRoC6khbbWNheE';
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+function showBootError(msg) {
+  const loader = document.getElementById('bootLoader');
+  const spinner = loader.querySelector('.spinner');
+  const errEl = document.getElementById('bootError');
+  if (spinner) spinner.classList.add('hidden');
+  errEl.textContent = msg;
+  errEl.classList.remove('hidden');
+}
+
+if (typeof supabase === 'undefined') {
+  showBootError('تعذر تحميل مكتبة Supabase. تحقق من اتصال الإنترنت وأعد فتح الصفحة.');
+  throw new Error('supabase-js failed to load');
+}
+
+let supabaseClient;
+try {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch (e) {
+  showBootError('خطأ في إعداد الاتصال بـ Supabase: ' + e.message);
+  throw e;
+}
+
+// شبكة أمان: إذا لم يستجب auth خلال 8 ثوانٍ، أظهر رسالة بدل الدوران للأبد
+const bootTimeout = setTimeout(() => {
+  showBootError('تعذر الاتصال بالخادم. تحقق من رابط ومفتاح Supabase.');
+}, 8000);
 
 const BUCKET = 'uploads';
 let currentUser = null;
@@ -227,6 +253,7 @@ logoutBtn.addEventListener('click', async () => {
 
 // ==================== مراقبة حالة الدخول ====================
 supabaseClient.auth.onAuthStateChange((event, session) => {
+  clearTimeout(bootTimeout);
   bootLoader.classList.add('hidden');
   if (session && session.user) {
     currentUser = session.user;
@@ -345,5 +372,5 @@ lightbox.addEventListener('click', () => {
 });
 </script>
 </body>
-     </html>
-                                                                                                                                              
+   </html>
+                                                                                                                            
