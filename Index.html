@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>معرض الصور</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.7/supabase.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Tajawal', sans-serif; }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+  .fade-in { animation: fadeIn .4s ease both; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+  .spinner { border-top-color: transparent; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg);} }
+</style>
+</head>
+<body class="bg-[#0f1115] min-h-screen text-zinc-100">
+
+<!-- ===================== شاشة التحميل الأولية ===================== -->
+<div id="bootLoader" class="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1115]">
+  <div class="w-8 h-8 rounded-full border-2 border-amber-500 spinner"></div>
+</div>
+
+<!-- ===================== شاشة الدخول / إنشاء حساب ===================== -->
+<div id="authScreen" class="hidden min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-sm fade-in">
+    <div class="text-center mb-8">
+      <div class="w-12 h-12 mx-auto mb-4 rounded-xl bg-amber-500 flex items-center justify-center text-[#0f1115] font-black text-xl">ل</div>
+      <h1 class="text-2xl font-black text-white">لقطة</h1>
+      <p class="text-zinc-500 text-sm mt-1">معرضك الخاص للصور</p>
+    </div>
+
+    <div class="bg-[#181b21] border border-zinc-800 rounded-2xl p-6">
+      <div class="flex mb-6 bg-[#0f1115] rounded-xl p-1">
+        <button id="tabLogin" class="flex-1 py-2 rounded-lg text-sm font-bold bg-amber-500 text-[#0f1115] transition">دخول</button>
+        <button id="tabSignup" class="flex-1 py-2 rounded-lg text-sm font-bold text-zinc-400 transition">حساب جديد</button>
+      </div>
+
+      <form id="authForm" class="space-y-3">
+        <input id="email" type="email" required placeholder="البريد الإلكتروني"
+          class="w-full bg-[#0f1115] border border-zinc-800 rounded-lg px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-amber-500 transition">
+        <input id="password" type="password" required minlength="6" placeholder="كلمة المرور"
+          class="w-full bg-[#0f1115] border border-zinc-800 rounded-lg px-4 py-3 text-sm placeholder-zinc-600 focus:outline-none focus:border-amber-500 transition">
+
+        <button id="authSubmit" type="submit"
+          class="w-full bg-amber-500 hover:bg-amber-400 text-[#0f1115] font-bold rounded-lg py-3 text-sm transition flex items-center justify-center gap-2">
+          <span id="authSubmitText">دخول</span>
+          <div id="authSpinner" class="hidden w-4 h-4 rounded-full border-2 border-[#0f1115] border-t-transparent spinner"></div>
+        </button>
+      </form>
+
+      <p id="authMsg" class="text-sm text-center mt-4 hidden"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== شاشة المعرض بعد الدخول ===================== -->
+<div id="appScreen" class="hidden min-h-screen">
+  <header class="border-b border-zinc-800 sticky top-0 bg-[#0f1115]/90 backdrop-blur z-20">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-[#0f1115] font-black text-sm">ل</div>
+        <span class="font-black text-white">لقطة</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="userEmail" class="text-xs text-zinc-500 hidden sm:block"></span>
+        <button id="logoutBtn" class="text-xs text-zinc-400 hover:text-amber-500 border border-zinc-800 rounded-lg px-3 py-2 transition">خروج</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <!-- منطقة الرفع -->
+    <div class="mb-8">
+      <input id="fileInput" type="file" accept="image/*" class="hidden">
+      <label for="fileInput" id="dropZone"
+        class="cursor-pointer flex flex-col items-center justify-center gap-2 border-2 border-dashed border-zinc-700 hover:border-amber-500 rounded-2xl py-10 px-4 text-center transition group">
+        <svg class="w-8 h-8 text-zinc-600 group-hover:text-amber-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span class="text-sm font-bold text-zinc-300">اضغط لرفع صورة</span>
+        <span class="text-xs text-zinc-600">PNG, JPG بحد أقصى 5 ميجابايت</span>
+      </label>
+
+      <div id="uploadProgress" class="hidden mt-4 flex items-center gap-3 text-sm text-amber-500">
+        <div class="w-4 h-4 rounded-full border-2 border-amber-500 border-t-transparent spinner"></div>
+        <span>جاري رفع الصورة...</span>
+      </div>
+      <p id="uploadMsg" class="hidden mt-3 text-sm"></p>
+    </div>
+
+    <!-- المعرض -->
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-white">صورك</h2>
+      <span id="photoCount" class="text-xs text-zinc-500"></span>
+    </div>
+
+    <div id="galleryLoading" class="flex justify-center py-16">
+      <div class="w-6 h-6 rounded-full border-2 border-amber-500 border-t-transparent spinner"></div>
+    </div>
+
+    <div id="emptyState" class="hidden flex-col items-center justify-center text-center py-16 text-zinc-600">
+      <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14M14 8h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <p class="text-sm">لا توجد صور بعد. ارفع أول صورة لك.</p>
+    </div>
+
+    <div id="gallery" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+  </main>
+</div>
+
+<!-- عارض الصورة بالحجم الكامل -->
+<div id="lightbox" class="hidden fixed inset-0 z-40 bg-black/90 backdrop-blur-sm items-center justify-center p-4 cursor-zoom-out">
+  <img id="lightboxImg" src="" class="max-w-full max-h-full rounded-lg shadow-2xl">
+</div>
+
+<script>
+// ==================== إعدادات Supabase ====================
+const SUPABASE_URL = 'https://xyzczcieiizsgaduhnlm.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_iBHfK5ZEafGgYx3ELxLy0A_b9gOAS3Q';
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const BUCKET = 'uploads';
+let currentUser = null;
+
+// ==================== عناصر DOM ====================
+const bootLoader   = document.getElementById('bootLoader');
+const authScreen   = document.getElementById('authScreen');
+const appScreen    = document.getElementById('appScreen');
+
+const tabLogin  = document.getElementById('tabLogin');
+const tabSignup = document.getElementById('tabSignup');
+const authForm  = document.getElementById('authForm');
+const emailEl   = document.getElementById('email');
+const passEl    = document.getElementById('password');
+const authSubmit     = document.getElementById('authSubmit');
+const authSubmitText = document.getElementById('authSubmitText');
+const authSpinner    = document.getElementById('authSpinner');
+const authMsg   = document.getElementById('authMsg');
+
+const userEmailEl = document.getElementById('userEmail');
+const logoutBtn   = document.getElementById('logoutBtn');
+
+const fileInput   = document.getElementById('fileInput');
+const uploadProgress = document.getElementById('uploadProgress');
+const uploadMsg   = document.getElementById('uploadMsg');
+
+const gallery       = document.getElementById('gallery');
+const galleryLoading = document.getElementById('galleryLoading');
+const emptyState    = document.getElementById('emptyState');
+const photoCount    = document.getElementById('photoCount');
+
+const lightbox    = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightboxImg');
+
+let mode = 'login'; // login | signup
+
+// ==================== تبديل التبويب دخول / حساب جديد ====================
+function setMode(newMode) {
+  mode = newMode;
+  const isLogin = mode === 'login';
+  tabLogin.classList.toggle('bg-amber-500', isLogin);
+  tabLogin.classList.toggle('text-[#0f1115]', isLogin);
+  tabLogin.classList.toggle('text-zinc-400', !isLogin);
+
+  tabSignup.classList.toggle('bg-amber-500', !isLogin);
+  tabSignup.classList.toggle('text-[#0f1115]', !isLogin);
+  tabSignup.classList.toggle('text-zinc-400', isLogin);
+
+  authSubmitText.textContent = isLogin ? 'دخول' : 'إنشاء الحساب';
+  authMsg.classList.add('hidden');
+}
+tabLogin.addEventListener('click', () => setMode('login'));
+tabSignup.addEventListener('click', () => setMode('signup'));
+
+function showAuthMsg(text, isError = true) {
+  authMsg.textContent = text;
+  authMsg.className = 'text-sm text-center mt-4 ' + (isError ? 'text-red-400' : 'text-emerald-400');
+}
+
+// ==================== نموذج الدخول / التسجيل ====================
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = emailEl.value.trim();
+  const password = passEl.value;
+
+  authSubmit.disabled = true;
+  authSpinner.classList.remove('hidden');
+  authMsg.classList.add('hidden');
+
+  try {
+    if (mode === 'login') {
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // onAuthStateChange سيتكفل بالتنقل
+    } else {
+      const { error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) throw error;
+      showAuthMsg('تم إنشاء الحساب. يمكنك الآن تسجيل الدخول (تحقق من بريدك إذا طُلب ذلك).', false);
+      setMode('login');
+    }
+  } catch (err) {
+    showAuthMsg(translateError(err.message));
+  } finally {
+    authSubmit.disabled = false;
+    authSpinner.classList.add('hidden');
+  }
+});
+
+function translateError(msg) {
+  if (/already registered|already exists/i.test(msg)) return 'هذا البريد مسجل مسبقاً.';
+  if (/invalid login credentials/i.test(msg)) return 'البريد أو كلمة المرور غير صحيحة.';
+  if (/password/i.test(msg) && /short/i.test(msg)) return 'كلمة المرور قصيرة جداً (6 أحرف على الأقل).';
+  return msg;
+}
+
+// ==================== تسجيل الخروج ====================
+logoutBtn.addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+});
+
+// ==================== مراقبة حالة الدخول ====================
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  bootLoader.classList.add('hidden');
+  if (session && session.user) {
+    currentUser = session.user;
+    authScreen.classList.add('hidden');
+    appScreen.classList.remove('hidden');
+    userEmailEl.textContent = currentUser.email;
+    loadPhotos();
+  } else {
+    currentUser = null;
+    appScreen.classList.add('hidden');
+    authScreen.classList.remove('hidden');
+    setMode('login');
+  }
+});
+
+// ==================== رفع صورة ====================
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  if (!file || !currentUser) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    showUploadMsg('حجم الصورة أكبر من 5 ميجابايت.', true);
+    fileInput.value = '';
+    return;
+  }
+
+  uploadProgress.classList.remove('hidden');
+  uploadMsg.classList.add('hidden');
+
+  try {
+    const ext = file.name.split('.').pop();
+    const path = `${currentUser.id}/${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from(BUCKET)
+      .upload(path, file, { cacheControl: '3600', upsert: false });
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabaseClient.storage
+      .from(BUCKET)
+      .getPublicUrl(path);
+
+    const { error: insertError } = await supabaseClient
+      .from('photos')
+      .insert({ user_id: currentUser.id, url: publicUrlData.publicUrl });
+    if (insertError) throw insertError;
+
+    showUploadMsg('تم رفع الصورة بنجاح.', false);
+    loadPhotos();
+  } catch (err) {
+    showUploadMsg('فشل الرفع: ' + err.message, true);
+  } finally {
+    uploadProgress.classList.add('hidden');
+    fileInput.value = '';
+  }
+});
+
+function showUploadMsg(text, isError) {
+  uploadMsg.textContent = text;
+  uploadMsg.className = 'mt-3 text-sm ' + (isError ? 'text-red-400' : 'text-emerald-400');
+  uploadMsg.classList.remove('hidden');
+  setTimeout(() => uploadMsg.classList.add('hidden'), 4000);
+}
+
+// ==================== تحميل صور المستخدم ====================
+async function loadPhotos() {
+  galleryLoading.classList.remove('hidden');
+  emptyState.classList.add('hidden');
+  gallery.innerHTML = '';
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('photos')
+      .select('id, url, created_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    photoCount.textContent = data.length ? `${data.length} صورة` : '';
+
+    if (!data.length) {
+      emptyState.classList.remove('hidden');
+      emptyState.classList.add('flex');
+      return;
+    }
+
+    data.forEach((photo, i) => {
+      const card = document.createElement('div');
+      card.className = 'fade-in relative aspect-square rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 group cursor-pointer';
+      card.style.animationDelay = `${i * 30}ms`;
+      card.innerHTML = `
+        <img src="${photo.url}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+      `;
+      card.addEventListener('click', () => openLightbox(photo.url));
+      gallery.appendChild(card);
+    });
+  } catch (err) {
+    photoCount.textContent = '';
+    gallery.innerHTML = `<p class="col-span-full text-center text-sm text-red-400 py-8">تعذر تحميل الصور: ${err.message}</p>`;
+  } finally {
+    galleryLoading.classList.add('hidden');
+  }
+}
+
+// ==================== عرض الصورة بالحجم الكامل ====================
+function openLightbox(url) {
+  lightboxImg.src = url;
+  lightbox.classList.remove('hidden');
+  lightbox.classList.add('flex');
+}
+lightbox.addEventListener('click', () => {
+  lightbox.classList.add('hidden');
+  lightbox.classList.remove('flex');
+  lightboxImg.src = '';
+});
+</script>
+</body>
+</html>
